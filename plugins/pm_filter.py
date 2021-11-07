@@ -23,7 +23,7 @@ from database.filters_mdb import(
 BUTTONS = {}
 SPELL_CHECK = {}
 
-@Client.on_message(filters.group & filters.text & filters.incoming)
+@Client.on_message(filters.group & filters.text & ~filters.edited & filters.incoming)
 async def give_filter(client,message):
     group_id = message.chat.id
     name = message.text
@@ -80,7 +80,7 @@ async def next_page(bot, query):
         offset = 0
     search = BUTTONS.get(key)
     if not search:
-        await query.answer("You are using this for one of my old message, please send the request again.",show_alert=True)
+        await query.answer("You are using one of my old messages, please send the request again.",show_alert=True)
         return
 
     files, n_offset, total = await get_search_results(search, offset=offset, filter=True)
@@ -145,13 +145,13 @@ async def next_page(bot, query):
 @Client.on_callback_query(filters.regex(r"^spolling"))
 async def advantage_spoll_choker(bot, query):
     _, user, movie_ = query.data.split('#')
-    movies = SPELL_CHECK.get(query.message.reply_to_message.message_id)
-    if not movies:
-        return await query.answer("You are clicking on an old button which is expired.", show_alert=True)
     if int(user) != 0 and query.from_user.id != int(user):
         return await query.answer("okDa", show_alert=True)
     if movie_  == "close_spellcheck":
         return await query.message.delete()
+    movies = SPELL_CHECK.get(query.message.reply_to_message.message_id)
+    if not movies:
+        return await query.answer("You are clicking on an old button which is expired.", show_alert=True)
     movie = movies[(int(movie_))]
     await query.answer('Checking for Movie in database...')
     files, offset, total_results = await get_search_results(movie, offset=0, filter=True)
@@ -622,7 +622,7 @@ async def auto_filter(client, msg, spoll=False):
         btn.append(
             [InlineKeyboardButton(text="🗓 1/1",callback_data="pages")]
         )
-    imdb = await get_poster(search) if IMDB else None
+    imdb = await get_poster(search, file=(files[0]).file_name) if IMDB else None
     if imdb:
         cap = IMDB_TEMPLATE.format(
             query = search,
@@ -679,7 +679,7 @@ async def advantage_spell_chok(msg):
     g_s += await search_gagala(msg.text)
     gs_parsed = []
     if not g_s:
-        k = await msg.reply("I cant find any movie in that name.")
+        k = await msg.reply("I couldn't find any movie in that name.")
         await asyncio.sleep(8)
         await k.delete()
         return
@@ -702,12 +702,13 @@ async def advantage_spell_chok(msg):
             imdb_s = await get_poster(mov.strip(), bulk=True) # searching each keyword in imdb
             if imdb_s:
                 movielist += [movie.get('title') for movie in imdb_s]
-    if not movielist:
-        k = await msg.reply("I cant find anything related to that. Checke your spelling")
-        await asyncio.sleep(8)
-        await k.delete()
     movielist += [(re.sub(r'(\-|\(|\)|_)', '', i, flags=re.IGNORECASE)).strip() for i in gs_parsed]
     movielist = list(dict.fromkeys(movielist)) # removing duplicates
+    if not movielist:
+        k = await msg.reply("I couldn't find anything related to that. Check your spelling")
+        await asyncio.sleep(8)
+        await k.delete()
+        return
     SPELL_CHECK[msg.message_id] = movielist
     btn = [[
                 InlineKeyboardButton(
@@ -716,7 +717,7 @@ async def advantage_spell_chok(msg):
                 )
             ] for k, movie in enumerate(movielist)]
     btn.append([InlineKeyboardButton(text="Close", callback_data=f'spolling#{user}#close_spellcheck')])
-    await msg.reply('I cant find anything related to that\nDid you mean any one of these?', reply_markup=InlineKeyboardMarkup(btn))
+    await msg.reply("I couldn't find anything related to that\nDid you mean any one of these?", reply_markup=InlineKeyboardMarkup(btn))
     
 
 
